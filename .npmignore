@@ -1,0 +1,43 @@
+# TypeScript source files (exclude from npm package)
+src/
+*.ts
+
+# Build and development files
+temp/
+e2e/
+test/
+docs/
+node_modules/
+
+# Configuration files
+tsconfig.json
+tslint.json
+protractor.conf.js
+.travis.yml
+
+# Documentation (keep only essential ones)
+Documentation.md
+CONTRIBUTING.md
+LEAP_YEAR_IMPLEMENTATION.md
+HOLIDAY_SYSTEM_DOCUMENTATION.md
+
+# Demo and test files
+demo*.html
+*test*.html
+
+# IDE and system files
+.vscode/
+.idea/
+*.log
+.DS_Store
+Thumbs.db
+
+# Git files
+.git/
+.gitignore
+
+# Keep only essential files for npm:
+# dist/
+# README.md
+# package.json
+# LICENSE

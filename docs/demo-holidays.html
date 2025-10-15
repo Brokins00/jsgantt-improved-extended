@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Demo Sistema Festività - JSGantt</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" type="text/css" href="../dist/jsgantt.css" />
+    <script src="../dist/jsgantt.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .controls { margin-bottom: 20px; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+        .control-group { margin: 10px 0; }
+        button { margin: 5px; padding: 8px 12px; }
+        .info { background: #e8f4fd; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .holidays-list { background: #fff; border: 1px solid #ddd; padding: 10px; margin: 10px 0; max-height: 200px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <h1>Demo Sistema Festività JSGantt</h1>
+    
+    <div class="info">
+        <h3>Funzionalità del Sistema di Festività:</h3>
+        <ul>
+            <li><strong>Giorni lavorativi configurabili</strong>: Imposta quali giorni della settimana sono lavorativi</li>
+            <li><strong>Festività personalizzate</strong>: Aggiungi periodi specifici di non lavoro</li>
+            <li><strong>Festività ricorrenti</strong>: Festività che si ripetono ogni anno</li>
+            <li><strong>Calcolo automatico durata</strong>: I task si allungano automaticamente saltando giorni non lavorativi</li>
+        </ul>
+    </div>
+
+    <div class="controls">
+        <h3>Controlli</h3>
+        
+        <div class="control-group">
+            <label>
+                <input type="checkbox" id="useHolidaySystem" onchange="toggleHolidaySystem()">
+                Abilita Sistema Festività
+            </label>
+        </div>
+
+        <div class="control-group">
+            <label>
+                <input type="checkbox" id="mondayToFriday" onchange="setMondayToFriday()">
+                Solo Lunedì-Venerdì (no weekend)
+            </label>
+        </div>
+
+        <div class="control-group">
+            <button onclick="addItalianHolidays()">Aggiungi Festività Italiane 2024</button>
+            <button onclick="addCustomHoliday()">Aggiungi Festività Personalizzata</button>
+            <button onclick="clearAllHolidays()">Rimuovi Tutte le Festività</button>
+        </div>
+
+        <div class="control-group">
+            <button onclick="regenerateChart()">Rigenera Gantt</button>
+        </div>
+    </div>
+
+    <div class="holidays-list">
+        <h4>Festività Attive:</h4>
+        <div id="holidaysList">Nessuna festività configurata</div>
+    </div>
+
+    <div style="position:relative" class="gantt" id="GanttChartDIV"></div>
+
+    <script>
+        let gantt;
+
+        function initializeGantt() {
+            gantt = new JSGantt.GanttChart('GanttChartDIV', 'day');
+            
+            // Configurazione base
+            gantt.setCaptionType('Complete');
+            gantt.setQuarterColWidth(36);
+            gantt.setDateTaskDisplayFormat('day dd month yyyy');
+            gantt.setDayMajorDateDisplayFormat('mon yyyy - Week ww');
+            gantt.setWeekMinorDateDisplayFormat('dd mon');
+            gantt.setShowTaskInfoLink(1);
+            gantt.setShowEndWeekDate(0);
+            gantt.setUseSingleCell(10000);
+            gantt.setFormatArr('day');
+
+            // Task di esempio che attraversano periodi con potenziali festività
+            gantt.AddTaskItem(new JSGantt.TaskItem({
+                pID: 1,
+                pName: 'Progetto A - Fase 1',
+                pStart: '2024-04-22', // Lunedì prima del 25 aprile
+                pEnd: '2024-04-26',   // Venerdì dopo il 25 aprile
+                pClass: 'gtaskblue',
+                pRes: 'Team A',
+                pComp: 0,
+                pGroup: 1,
+                pParent: 0,
+                pOpen: 1,
+                pNotes: 'Task che attraversa la Festa della Liberazione (25 aprile)'
+            }));
+
+            gantt.AddTaskItem(new JSGantt.TaskItem({
+                pID: 2,
+                pName: 'Sottotask 1.1',
+                pStart: '2024-04-23',
+                pEnd: '2024-04-25',
+                pClass: 'gtaskgreen',
+                pRes: 'Sviluppatore 1',
+                pComp: 50,
+                pGroup: 0,
+                pParent: 1,
+                pOpen: 1,
+                pNotes: 'Sottotask durante festività'
+            }));
+
+            gantt.AddTaskItem(new JSGantt.TaskItem({
+                pID: 3,
+                pName: 'Progetto B - Weekend',
+                pStart: '2024-04-26', // Venerdì
+                pEnd: '2024-04-29',   // Lunedì (attraversa weekend)
+                pClass: 'gtaskred',
+                pRes: 'Team B',
+                pComp: 25,
+                pGroup: 0,
+                pParent: 0,
+                pOpen: 1,
+                pNotes: 'Task che attraversa weekend'
+            }));
+
+            gantt.AddTaskItem(new JSGantt.TaskItem({
+                pID: 4,
+                pName: 'Progetto C - Maggio',
+                pStart: '2024-04-30', // Martedì prima del 1° maggio
+                pEnd: '2024-05-03',   // Venerdì dopo il 1° maggio
+                pClass: 'gtaskyellow',
+                pRes: 'Team C',
+                pComp: 75,
+                pGroup: 0,
+                pParent: 0,
+                pOpen: 1,
+                pNotes: 'Task che attraversa Festa del Lavoro (1° maggio)'
+            }));
+
+            gantt.AddTaskItem(new JSGantt.TaskItem({
+                pID: 5,
+                pName: 'Progetto Estivo',
+                pStart: '2024-08-12', // Lunedì prima di Ferragosto
+                pEnd: '2024-08-19',   // Lunedì dopo Ferragosto
+                pClass: 'gtaskpurple',
+                pRes: 'Team Estivo',
+                pComp: 10,
+                pGroup: 0,
+                pParent: 0,
+                pOpen: 1,
+                pNotes: 'Task che attraversa Ferragosto (15 agosto)'
+            }));
+
+            gantt.Draw();
+            updateHolidaysList();
+        }
+
+        function toggleHolidaySystem() {
+            const enabled = document.getElementById('useHolidaySystem').checked;
+            gantt.setUseHolidaySystem(enabled);
+            
+            if (enabled) {
+                console.log('✓ Sistema festività abilitato');
+            } else {
+                console.log('✗ Sistema festività disabilitato');
+            }
+            
+            regenerateChart();
+        }
+
+        function setMondayToFriday() {
+            const enabled = document.getElementById('mondayToFriday').checked;
+            
+            if (enabled) {
+                gantt.setWorkingDaysToWeekdays(); // Lunedì-Venerdì
+                console.log('✓ Impostati giorni lavorativi: Lunedì-Venerdì');
+            } else {
+                // Ripristina tutti i giorni come lavorativi
+                gantt.setCustomWorkingDays({
+                    monday: true,
+                    tuesday: true,
+                    wednesday: true,
+                    thursday: true,
+                    friday: true,
+                    saturday: true,
+                    sunday: true
+                });
+                console.log('✓ Tutti i giorni impostati come lavorativi');
+            }
+            
+            regenerateChart();
+        }
+
+        function addItalianHolidays() {
+            gantt.addItalianHolidays(2024);
+            console.log('✓ Aggiunte festività italiane 2024');
+            updateHolidaysList();
+            regenerateChart();
+        }
+
+        function addCustomHoliday() {
+            // Esempio: Ferie aziendali estive
+            const customHoliday = {
+                id: 'ferie-estive-' + Date.now(),
+                name: 'Ferie Aziendali Estive',
+                startDate: new Date(2024, 7, 10), // 10 agosto
+                endDate: new Date(2024, 7, 20),   // 20 agosto
+                recurring: false,
+                description: 'Chiusura aziendale per ferie estive'
+            };
+            
+            gantt.addHoliday(customHoliday);
+            console.log('✓ Aggiunta festività personalizzata:', customHoliday.name);
+            updateHolidaysList();
+            regenerateChart();
+        }
+
+        function clearAllHolidays() {
+            gantt.clearHolidays();
+            console.log('✓ Rimosse tutte le festività');
+            updateHolidaysList();
+            regenerateChart();
+        }
+
+        function regenerateChart() {
+            gantt.Draw();
+            console.log('🔄 Gantt rigenerato');
+        }
+
+        function updateHolidaysList() {
+            const holidays = gantt.getHolidays();
+            const listElement = document.getElementById('holidaysList');
+            
+            if (holidays.length === 0) {
+                listElement.innerHTML = 'Nessuna festività configurata';
+                return;
+            }
+            
+            let html = '<ul>';
+            holidays.forEach(holiday => {
+                const startStr = holiday.startDate.toLocaleDateString('it-IT');
+                const endStr = holiday.endDate.toLocaleDateString('it-IT');
+                const dateRange = startStr === endStr ? startStr : `${startStr} - ${endStr}`;
+                const recurring = holiday.recurring ? ' (ricorrente)' : '';
+                
+                html += `<li><strong>${holiday.name}</strong>: ${dateRange}${recurring}</li>`;
+            });
+            html += '</ul>';
+            
+            listElement.innerHTML = html;
+        }
+
+        function formatDate(date) {
+            return date.toLocaleDateString('it-IT');
+        }
+
+        // Inizializza il Gantt al caricamento della pagina
+        window.onload = function() {
+            initializeGantt();
+            
+            // Mostra informazioni sulla console
+            console.log('=== Demo Sistema Festività JSGantt ===');
+            console.log('Utilizzare i controlli per testare le funzionalità:');
+            console.log('1. Abilita il sistema festività');
+            console.log('2. Imposta lunedì-venerdì come giorni lavorativi');
+            console.log('3. Aggiungi festività italiane o personalizzate');
+            console.log('4. Osserva come cambiano le durate dei task');
+            console.log('=====================================');
+        };
+    </script>
+</body>
+</html>
