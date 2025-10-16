@@ -3,9 +3,58 @@
  * DATES
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getIsoWeek = exports.parseDateFormatStr = exports.formatDateStr = exports.parseDateStr = exports.coerceDate = exports.getMaxDate = exports.getMinDate = exports.DEFAULT_WORKING_DAYS = exports.addWorkingDays = exports.countNonWorkingDays = exports.isNonWorkingDay = exports.isHoliday = exports.isWorkingDay = exports.getMonthDaysArray = exports.getDaysInMonth = exports.isLeapYear = void 0;
+exports.getIsoWeek = exports.parseDateFormatStr = exports.formatDateStr = exports.parseDateStr = exports.coerceDate = exports.getMaxDate = exports.getMinDate = exports.DEFAULT_WORKING_DAYS = exports.addWorkingDays = exports.countNonWorkingDays = exports.isNonWorkingDay = exports.isHoliday = exports.isWorkingDay = exports.getMonthDaysArray = exports.getDaysInMonth = exports.isLeapYear = exports.countWorkingDaysInPeriod = exports.calculateAdjustedEndDate = void 0;
+/**
+ * Calcola la data di fine di un task considerando solo i giorni lavorativi
+ * @param startDate Data di inizio del task
+ * @param originalEndDate Data di fine originale del task
+ * @param workingDays Configurazione giorni lavorativi
+ * @param holidays Array di festività
+ * @returns Nuova data di fine che considera i giorni non lavorativi
+ */
+exports.calculateAdjustedEndDate = function (startDate, originalEndDate, workingDays, holidays) {
+    // Calcola i giorni totali del periodo originale (inclusi entrambi gli estremi)
+    const totalDaysOriginal = Math.ceil((originalEndDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    // Calcola quanti di questi dovrebbero essere giorni lavorativi (senza considerare festività)
+    let expectedWorkingDays = 0;
+    const tempDate = new Date(startDate.getTime());
+    for (let i = 0; i < totalDaysOriginal; i++) {
+        if (exports.isWorkingDay(tempDate, workingDays)) {
+            expectedWorkingDays++;
+        }
+        tempDate.setDate(tempDate.getDate() + 1);
+    }
+    // Se non ci sono giorni lavorativi attesi, restituisce la data originale
+    if (expectedWorkingDays <= 0) {
+        return originalEndDate;
+    }
+    // Ora aggiungi questi giorni lavorativi alla data di inizio, saltando festività
+    return exports.addWorkingDays(startDate, expectedWorkingDays - 1, workingDays, holidays);
+};
 /**
  * Verifica se un anno è bisestile
+
+/**
+ * Conta i giorni lavorativi in un periodo (inclusivo)
+ * @param startDate Data di inizio (inclusa)
+ * @param endDate Data di fine (inclusa)
+ * @param workingDays Configurazione giorni lavorativi
+ * @param holidays Array di festività
+ * @returns Numero di giorni lavorativi nel periodo
+ */
+exports.countWorkingDaysInPeriod = function (startDate, endDate, workingDays, holidays) {
+    let count = 0;
+    const currentDate = new Date(startDate.getTime());
+    while (currentDate <= endDate) {
+        if (!exports.isNonWorkingDay(currentDate, workingDays, holidays)) {
+            count++;
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+    return count;
+};
+/**
+ * Verifica se una data è bisestile
  * @param year Anno da verificare
  * @returns true se l'anno è bisestile, false altrimenti
  */

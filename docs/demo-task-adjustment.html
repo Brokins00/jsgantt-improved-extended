@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Demo Aggiustamento Automatico Date Task</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" type="text/css" href="../src/jsgantt.css" />
+    <script src="../dist/jsgantt.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .controls { margin-bottom: 20px; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+        .control-group { margin: 10px 0; }
+        button { margin: 5px; padding: 8px 12px; }
+        .info { background: #e8f4fd; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .results { background: #f0f8ff; padding: 10px; margin: 10px 0; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Demo Aggiustamento Automatico Date Task</h1>
+    
+    <div class="info">
+        <h3>Test del problema:</h3>
+        <p><strong>Scenario:</strong> Task dal 14 al 16 aprile, con il 16 aprile che è festività.</p>
+        <p><strong>Comportamento atteso:</strong> Il task dovrebbe essere esteso al 17 aprile per compensare la festività.</p>
+        <p><strong>Configurazione:</strong> Solo Lunedì-Venerdì lavorativi, 16 aprile = festività</p>
+    </div>
+
+    <div class="controls">
+        <h3>Controlli</h3>
+        
+        <div class="control-group">
+            <label>
+                <input type="checkbox" id="enableAutoAdjust" onchange="toggleAutoAdjust()">
+                Abilita Aggiustamento Automatico Date Task
+            </label>
+        </div>
+
+        <div class="control-group">
+            <button onclick="setupExample()">Configura Esempio</button>
+            <button onclick="addTestTasks()">Aggiungi Task di Test</button>
+            <button onclick="clearAllTasks()">Rimuovi Tutti i Task</button>
+        </div>
+
+        <div class="control-group">
+            <button onclick="regenerateChart()">Rigenera Gantt</button>
+        </div>
+    </div>
+
+    <div class="results" id="results">
+        Risultati del test appariranno qui...
+    </div>
+
+    <div style="position:relative" class="gantt" id="GanttChartDIV"></div>
+
+    <script>
+        let gantt;
+        let taskCounter = 1;
+
+        function initializeGantt() {
+            gantt = new JSGantt.GanttChart('GanttChartDIV', 'day');
+            
+            // Configurazione base
+            gantt.setCaptionType('Complete');
+            gantt.setQuarterColWidth(36);
+            gantt.setDateTaskDisplayFormat('day dd month yyyy');
+            gantt.setDayMajorDateDisplayFormat('mon yyyy - Week ww');
+            gantt.setWeekMinorDateDisplayFormat('dd mon');
+            gantt.setShowTaskInfoLink(1);
+            gantt.setShowEndWeekDate(0);
+            gantt.setUseSingleCell(10000);
+            gantt.setFormatArr('day');
+
+            gantt.Draw();
+            logMessage('Gantt inizializzato');
+        }
+
+        function setupExample() {
+            // Abilita il sistema festività
+            gantt.setUseHolidaySystem(true);
+            
+            // Imposta giorni lavorativi a Lunedì-Venerdì
+            gantt.setWorkingDaysToWeekdays();
+            
+            // Aggiungi festività del 16 aprile
+            gantt.addHoliday({
+                id: 'test-holiday',
+                name: 'Festività Test',
+                startDate: new Date(2024, 3, 16), // 16 aprile
+                endDate: new Date(2024, 3, 16),
+                recurring: false,
+                description: 'Festività per test aggiustamento date'
+            });
+            
+            logMessage('✓ Sistema configurato: Lun-Ven lavorativi, 16 aprile festività');
+        }
+
+        function toggleAutoAdjust() {
+            const enabled = document.getElementById('enableAutoAdjust').checked;
+            
+            if (typeof gantt.setAutoAdjustTaskDates === 'function') {
+                gantt.setAutoAdjustTaskDates(enabled);
+                logMessage(enabled ? '✓ Aggiustamento automatico ABILITATO' : '✗ Aggiustamento automatico DISABILITATO');
+            } else {
+                logMessage('❌ Funzione setAutoAdjustTaskDates non disponibile');
+            }
+        }
+
+        function addTestTasks() {
+            // Task 1: Dal 14 al 16 aprile (il problema originale)
+            const task1EndOriginal = new Date(2024, 3, 16);
+            
+            gantt.AddTaskItem(new JSGantt.TaskItem({
+                pID: taskCounter++,
+                pName: 'Task Problematico (14-16 apr)',
+                pStart: '2024-04-14',
+                pEnd: '2024-04-16',
+                pClass: 'gtaskred',
+                pRes: 'Test 1',
+                pComp: 0,
+                pGroup: 0,
+                pParent: 0,
+                pOpen: 1,
+                pNotes: 'Task che dovrebbe essere esteso per la festività del 16'
+            }));
+
+            // Task 2: Dal 15 al 17 aprile (Lun-Mer con Mar festivo)
+            gantt.AddTaskItem(new JSGantt.TaskItem({
+                pID: taskCounter++,
+                pName: 'Task Lun-Mer (15-17 apr)',
+                pStart: '2024-04-15',
+                pEnd: '2024-04-17',
+                pClass: 'gtaskblue',
+                pRes: 'Test 2',
+                pComp: 0,
+                pGroup: 0,
+                pParent: 0,
+                pOpen: 1,
+                pNotes: 'Task che attraversa la festività di martedì'
+            }));
+
+            // Task 3: Task normale (nessuna festività)
+            gantt.AddTaskItem(new JSGantt.TaskItem({
+                pID: taskCounter++,
+                pName: 'Task Normale (18-20 apr)',
+                pStart: '2024-04-18',
+                pEnd: '2024-04-20',
+                pClass: 'gtaskgreen',
+                pRes: 'Test 3',
+                pComp: 0,
+                pGroup: 0,
+                pParent: 0,
+                pOpen: 1,
+                pNotes: 'Task normale senza festività'
+            }));
+
+            logMessage('✓ Aggiunti 3 task di test');
+            regenerateChart();
+        }
+
+        function clearAllTasks() {
+            gantt.ClearTasks();
+            taskCounter = 1;
+            logMessage('✓ Tutti i task rimossi');
+            regenerateChart();
+        }
+
+        function regenerateChart() {
+            gantt.Draw();
+            logMessage('🔄 Gantt rigenerato');
+        }
+
+        function logMessage(message) {
+            const resultsDiv = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            resultsDiv.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        // Inizializza il Gantt al caricamento della pagina
+        window.onload = function() {
+            initializeGantt();
+            
+            logMessage('=== Demo Aggiustamento Automatico Date Task ===');
+            logMessage('1. Clicca "Configura Esempio" per impostare festività');
+            logMessage('2. Abilita "Aggiustamento Automatico Date Task"');
+            logMessage('3. Clicca "Aggiungi Task di Test"');
+            logMessage('4. Osserva se le date vengono aggiustate automaticamente');
+            logMessage('=====================================');
+        };
+    </script>
+</body>
+</html>

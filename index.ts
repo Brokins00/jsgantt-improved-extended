@@ -1,8 +1,5 @@
-import
-  * as jsGantt
-  from './src/jsgantt';
+import * as jsGantt from './src/jsgantt';
 
-declare var module: any;
-module.exports = jsGantt.JSGantt;
-
+// Export ES modules per compatibilità browser/bundler moderni
 export const JSGantt = jsGantt.JSGantt;
+export default jsGantt.JSGantt;

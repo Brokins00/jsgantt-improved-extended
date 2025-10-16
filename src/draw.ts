@@ -22,7 +22,7 @@ import { COLUMN_ORDER, draw_header, draw_bottom, draw_task_headings } from "./dr
 import { newNode, makeInput, getArrayLocationByID, CalcTaskXY, sLine, drawSelector } from "./utils/draw_utils";
 import { drawDependency, DrawDependencies } from "./draw_dependencies";
 import { includeGetSet } from "./options";
-import { parseDateFormatStr, getMinDate, coerceDate, getMaxDate, formatDateStr, parseDateStr, getMonthDaysArray, Holiday, WorkingDaysConfig, DEFAULT_WORKING_DAYS } from "./utils/date_utils";
+import { parseDateFormatStr, getMinDate, coerceDate, getMaxDate, formatDateStr, parseDateStr, getMonthDaysArray, Holiday, WorkingDaysConfig, DEFAULT_WORKING_DAYS, calculateAdjustedEndDate, isNonWorkingDay } from "./utils/date_utils";
 
 /**
  * function that loads the main gantt chart properties and functions
@@ -74,6 +74,7 @@ export const GanttChart = function (pDiv, pFormat) {
   this.vHolidays = [];
   this.vCustomWorkingDays = null; // Se null, usa vWorkingDays legacy
   this.vUseHolidaySystem = false; // Abilita/disabilita il nuovo sistema
+  this.vAutoAdjustTaskDates = false; // Abilita/disabilita aggiustamento automatico date task
 
   this.vEventClickCollapse = null;
   this.vEventClickRow = null;
@@ -161,7 +162,13 @@ export const GanttChart = function (pDiv, pFormat) {
   this.removeListener = removeListener.bind(this);
 
   this.createTaskInfo = createTaskInfo;
-  this.AddTaskItem = AddTaskItem;
+  this.AddTaskItem = function(task) {
+    // NON aggiustiamo le date - lasciamo che sia getOffset a gestire la visualizzazione
+    // In questo modo le date rimangono quelle originali ma la visualizzazione considera festività
+    
+    // Chiama la funzione originale
+    return AddTaskItem.call(this, task);
+  }.bind(this);
   this.AddTaskItemObject = AddTaskItemObject;
   this.RemoveTaskItem = RemoveTaskItem;
   this.ClearTasks = ClearTasks;
@@ -192,6 +199,14 @@ export const GanttChart = function (pDiv, pFormat) {
    */
   this.setUseHolidaySystem = function (useHolidays) {
     this.vUseHolidaySystem = useHolidays;
+    return this;
+  };
+
+  /**
+   * Abilita o disabilita l'aggiustamento automatico delle date dei task
+   */
+  this.setAutoAdjustTaskDates = function (autoAdjust) {
+    this.vAutoAdjustTaskDates = autoAdjust;
     return this;
   };
 
@@ -579,7 +594,19 @@ export const GanttChart = function (pDiv, pFormat) {
 
         if (vTmpDate <= vMaxDate) {
           const vTmpCell = newNode(vTmpRow, "td", null, vMinorHeaderCellClass);
+          // Usa formato locale invece di UTC per evitare problemi di timezone
+          const year = vTmpDate.getFullYear();
+          const month = String(vTmpDate.getMonth() + 1).padStart(2, '0');
+          const day = String(vTmpDate.getDate()).padStart(2, '0');
+          vTmpCell.setAttribute('data-header-date', `${year}-${month}-${day}`);
+          vTmpCell.setAttribute('data-header-col', vNumCols.toString());
           newNode(vTmpCell, "div", null, null, formatDateStr(vTmpDate, this.vDayMinorDateDisplayFormat, this.vLangs[this.vLang]), vColWidth);
+          
+          // 🔍 Debug header
+          if (vNumCols < 5) {
+            const dayNames = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
+          }
+          
           vNumCols++;
         }
 
@@ -684,8 +711,8 @@ export const GanttChart = function (pDiv, pFormat) {
       const workingDays = this.vUseHolidaySystem ? this.vCustomWorkingDays : null;
       const holidays = this.vUseHolidaySystem ? this.vHolidays : null;
 
-      const vTaskLeftPx = getOffset(vMinDate, curTaskStart, vColWidth, this.vFormat, this.vShowWeekends, workingDays, holidays);
-      const vTaskRightPx = getOffset(curTaskStart, curTaskEnd, vColWidth, this.vFormat, this.vShowWeekends, workingDays, holidays);
+      const vTaskLeftPx = getOffset(vMinDate, curTaskStart, vColWidth, this.vFormat, this.vShowWeekends, workingDays, holidays, false);
+      const vTaskRightPx = getOffset(curTaskStart, curTaskEnd, vColWidth, this.vFormat, this.vShowWeekends, workingDays, holidays, true);
 
       let curTaskPlanStart, curTaskPlanEnd;
 
@@ -694,8 +721,8 @@ export const GanttChart = function (pDiv, pFormat) {
       let vTaskPlanLeftPx = 0;
       let vTaskPlanRightPx = 0;
       if (curTaskPlanStart && curTaskPlanEnd) {
-        vTaskPlanLeftPx = getOffset(vMinDate, curTaskPlanStart, vColWidth, this.vFormat, this.vShowWeekends, workingDays, holidays);
-        vTaskPlanRightPx = getOffset(curTaskPlanStart, curTaskPlanEnd, vColWidth, this.vFormat, this.vShowWeekends, workingDays, holidays);
+        vTaskPlanLeftPx = getOffset(vMinDate, curTaskPlanStart, vColWidth, this.vFormat, this.vShowWeekends, workingDays, holidays, false);
+        vTaskPlanRightPx = getOffset(curTaskPlanStart, curTaskPlanEnd, vColWidth, this.vFormat, this.vShowWeekends, workingDays, holidays, true);
       }
 
       const vID = this.vTaskList[i].getID();
@@ -898,16 +925,51 @@ export const GanttChart = function (pDiv, pFormat) {
       columnCurrentDay = Math.floor(calculateCurrentDateOffset(curTaskStart, curTaskEnd) / onePeriod) - 1;
     }
 
-    for (let j = 0; j < vNumCols - 1; j++) {
-      let vCellFormat = "gtaskcell gtaskcellcols";
-      if (this.vShowWeekends !== false && this.vFormat == "day" && (j % 7 == 4 || j % 7 == 5)) {
-        vCellFormat = "gtaskcellwkend";
+    // Crea vNumCols celle partendo da pStartDate (i=0 include pStartDate stesso)
+    for (let i = 1; i < vNumCols; i++) {
+      // ⚠️ CRITICO: Crea una NUOVA istanza di Date per ogni colonna!
+      const colDate = new Date(pStartDate.getTime());
+      
+      // Calcola la data per questa colonna avanzando di i giorni/settimane/mesi
+      if (this.vFormat == "day") {
+        colDate.setDate(pStartDate.getDate() + i);
+      } else if (this.vFormat == "week") {
+        colDate.setDate(pStartDate.getDate() + (i * 7));
+      } else if (this.vFormat == "month") {
+        colDate.setMonth(pStartDate.getMonth() + i);
       }
+      
+      let vCellFormat = "gtaskcell gtaskcellcols";
+
       //When is the column is the current day/week,give a different class
-      else if ((this.vFormat == "week" || this.vFormat == "day") && j === columnCurrentDay) {
+      if ((this.vFormat == "week" || this.vFormat == "day") && i === (columnCurrentDay + 1)) {
         vCellFormat = "gtaskcellcurrent";
       }
-      newNode(vTmpRow, "td", null, vCellFormat, "\u00A0\u00A0", taskCellWidth);
+      
+      // Calcola la data corrente per questa colonna
+      if (this.vFormat == "day" && pStartDate) {
+        // Usa il sistema personalizzato di giorni lavorativi e festività se disponibile
+        if (this.vCustomWorkingDays && this.vHolidays) {
+          const isNonWorking = isNonWorkingDay(colDate, this.vCustomWorkingDays, this.vHolidays);
+          
+          if (isNonWorking) {
+            vCellFormat = "gtaskcellholiday"; // Nuova classe per festività
+          }
+        }
+        // Altrimenti usa il sistema legacy per weekend (sabato/domenica)
+        else if (this.vShowWeekends !== false && colDate.getDay() % 6 == 0) {
+          vCellFormat = "gtaskcellwkend";
+        }
+      }
+      
+      const cell = newNode(vTmpRow, "td", null, vCellFormat, "\u00A0\u00A0", taskCellWidth);
+      // Aggiungi attributo data per debug - usa formato locale invece di UTC
+      const year = colDate.getFullYear();
+      const month = String(colDate.getMonth() + 1).padStart(2, '0');
+      const day = String(colDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      cell.setAttribute('data-date', dateStr);
+      cell.setAttribute('data-col-index', i.toString());
     }
   };
 

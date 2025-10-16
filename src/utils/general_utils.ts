@@ -1,4 +1,4 @@
-import { getDaysInMonth, Holiday, WorkingDaysConfig, countNonWorkingDays, DEFAULT_WORKING_DAYS } from "./date_utils";
+import { getDaysInMonth, Holiday, WorkingDaysConfig, countNonWorkingDays, countWorkingDaysInPeriod, DEFAULT_WORKING_DAYS } from "./date_utils";
 
 export const internalProperties = ['pID', 'pName', 'pStart', 'pEnd', 'pClass', 'pLink', 'pMile', 'pRes', 'pComp', 'pGroup', 'pParent',
   'pOpen', 'pDepend', 'pCaption', 'pNotes', 'pGantt', 'pCost', 'pPlanStart', 'pPlanEnd', 'pPlanClass'];
@@ -120,7 +120,7 @@ export const calculateCurrentDateOffset = function(curTaskStart, curTaskEnd){
   return (tmpTaskEnd - tmpTaskStart);
 }
 
-export const getOffset = function (pStartDate, pEndDate, pColWidth, pFormat, pShowWeekends, pWorkingDays?: WorkingDaysConfig, pHolidays?: Holiday[]) {
+export const getOffset = function (pStartDate, pEndDate, pColWidth, pFormat, pShowWeekends, pWorkingDays?: WorkingDaysConfig, pHolidays?: Holiday[], isWidth?: boolean) {
   const DAY_CELL_MARGIN_WIDTH = 3; // Cell margin for 'day' format
   const WEEK_CELL_MARGIN_WIDTH = 3; // Cell margin for 'week' format
   const MONTH_CELL_MARGIN_WIDTH = 3; // Cell margin for 'month' format
@@ -131,36 +131,41 @@ export const getOffset = function (pStartDate, pEndDate, pColWidth, pFormat, pSh
   let curTaskEnd = new Date(pEndDate.getTime());
   let vTaskRightPx = 0;
 
-  // Length of task in hours
-  const oneHour = 3600000;
-  let vTaskRight = calculateCurrentDateOffset(curTaskStart, curTaskEnd) / oneHour ;
+  // 🔍 DEBUG: Log per TUTTE le chiamate che coinvolgono il 18 ottobre
+  const isTask2Debug = (curTaskEnd.getDate() === 18 && curTaskEnd.getMonth() === 9) || 
+                       (curTaskStart.getDate() === 18 && curTaskStart.getMonth() === 9) ||
+                       (curTaskEnd.getDate() === 20 && curTaskEnd.getMonth() === 9);
 
   let vPosTmpDate;
   if (pFormat == 'day') {
-    if (!pShowWeekends || pWorkingDays || pHolidays) {
-      // Usa il nuovo sistema di calcolo giorni non lavorativi
-      if (pWorkingDays && pHolidays) {
-        // Sistema completo con configurazione personalizzata
-        const nonWorkingDays = countNonWorkingDays(curTaskStart, curTaskEnd, pWorkingDays, pHolidays);
-        vTaskRight -= nonWorkingDays * 24;
-      } else if (!pShowWeekends) {
-        // Sistema legacy per weekend
-        let start = curTaskStart;
-        let end = curTaskEnd;
-        let countWeekends = 0;
-        while (start < end) {
-          const day = start.getDay();
-          if (day === 6 || day == 0) {
-            countWeekends++
-          }
-          start = new Date(start.getTime() + 24 * oneHour);
-        }
-        vTaskRight -= countWeekends * 24;
+    // Se abbiamo workingDays e holidays, calcola considerando le festività
+    if (pWorkingDays && pHolidays) {
+      if (isWidth) {
+        // Per la LARGHEZZA: conta tutti i giorni calendario dal primo all'ultimo (inclusi festivi)
+        // La barra deve coprire visivamente tutte le celle dal giorno di inizio al giorno di fine
+        const oneDay = 86400000; // millisecondi in un giorno
+        const daysDiff = Math.round((curTaskEnd.getTime() - curTaskStart.getTime()) / oneDay);
+        vTaskRightPx = Math.ceil(daysDiff * (pColWidth + DAY_CELL_MARGIN_WIDTH));
+      } else {
+        // Per la POSIZIONE: conta TUTTI i giorni calendario (non solo lavorativi!)
+        // La posizione deve corrispondere alla colonna dell'header che mostra TUTTI i giorni
+        // Escludiamo il giorno iniziale (vMinDate) perché la colonna 0 corrisponde a vMinDate
+        const oneDay = 86400000;
+        // Usiamo Math.floor per evitare arrotondamenti per eccesso
+        const daysDiff = Math.floor((curTaskEnd.getTime() - curTaskStart.getTime()) / oneDay);
+        vTaskRightPx = Math.ceil(daysDiff * (pColWidth + DAY_CELL_MARGIN_WIDTH));
       }
+    } else {
+      // Calcolo legacy: differenza in ore / 24
+      const oneHour = 3600000;
+      let vTaskRight = calculateCurrentDateOffset(curTaskStart, curTaskEnd) / oneHour;
+      vTaskRightPx = Math.ceil((vTaskRight / 24) * (pColWidth + DAY_CELL_MARGIN_WIDTH) - 1);
     }
-    vTaskRightPx = Math.ceil((vTaskRight / 24) * (pColWidth + DAY_CELL_MARGIN_WIDTH) - 1);
   }
   else if (pFormat == 'week') {
+    // Length of task in hours
+    const oneHour = 3600000;
+    let vTaskRight = calculateCurrentDateOffset(curTaskStart, curTaskEnd) / oneHour;
     vTaskRightPx = Math.ceil((vTaskRight / (24 * 7)) * (pColWidth + WEEK_CELL_MARGIN_WIDTH) - 1);
   }
   else if (pFormat == 'month') {
@@ -185,6 +190,9 @@ export const getOffset = function (pStartDate, pEndDate, pColWidth, pFormat, pSh
     vPosTmpDate.setMinutes(curTaskStart.getMinutes(), 0);
     let vMinsCrctn = (curTaskEnd.getTime() - vPosTmpDate.getTime()) / (3600000);
 
+    // Length of task in hours
+    const oneHour = 3600000;
+    let vTaskRight = calculateCurrentDateOffset(curTaskStart, curTaskEnd) / oneHour;
     vTaskRightPx = Math.ceil((vTaskRight * (pColWidth + HOUR_CELL_MARGIN_WIDTH)) + (vMinsCrctn * (pColWidth)));
   }
   return vTaskRightPx;
@@ -259,7 +267,7 @@ export const hashString = function (key) {
 }
 
 export const hashKey = function (key) {
-  return this.hashString(key);
+  return hashString(key);
 }
 
 export const criticalPath = function (tasks) {

@@ -61,11 +61,16 @@ div.gantt {
 
 .gtaskcellwkend,
 .gtaskcellcurrent,
+.gtaskcellholiday,
 .gminorheadingwkend {
-  background-color: #f7f7f7;
+  /* background-color: #f7f7f7; */
   font-weight: bold;
   font-size: 9px;
   white-space: nowrap;
+}
+
+.gtaskcellholiday {
+  background-color: #ffe6e6; /* Rosso chiaro per le festività */
 }
 
 .gtaskcellcurrent {

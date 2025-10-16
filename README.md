@@ -1,4 +1,4 @@
-# @brokins00/jsgantt-improved
+# jsgantt-improved-extended
 
 [![Build Status](https://travis-ci.com/jsGanttImproved/jsgantt-improved.svg?branch=master)](https://travis-ci.com/jsGanttImproved/jsgantt-improved)
 
@@ -32,7 +32,7 @@ Start using with including the files `jsgantt.js` and `jsgantt.css` that are ins
 
 Install via npm:
 ```bash
-npm install @brokins00/jsgantt-improved
+npm install jsgantt-improved-extended
 ```
 
 Or install the original version:
@@ -42,7 +42,7 @@ npm install jsgantt-improved
 
 Import in your JS: 
 ```javascript
-import {JSGantt} from '@brokins00/jsgantt-improved';
+import {JSGantt} from 'jsgantt-improved-extended';
 ```
 
 ## 🔥 New Features Usage
@@ -82,7 +82,7 @@ gantt.Draw();
 
 ### Leap Year Functions
 ```javascript
-import { isLeapYear, getDaysInMonth } from '@brokins00/jsgantt-improved';
+import { isLeapYear, getDaysInMonth } from 'jsgantt-improved-extended';
 
 console.log(isLeapYear(2024)); // true
 console.log(getDaysInMonth(1, 2024)); // 29 (February in leap year)

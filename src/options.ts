@@ -91,6 +91,7 @@ export const includeGetSet = function () {
   
   // === METODI PER GESTIONE FESTIVITÀ ===
   this.setUseHolidaySystem = function (useHolidays) { return this.setUseHolidaySystem(useHolidays); };
+  this.setAutoAdjustTaskDates = function (autoAdjust) { return this.setAutoAdjustTaskDates(autoAdjust); };
   this.setCustomWorkingDays = function (workingDaysConfig) { return this.setCustomWorkingDays(workingDaysConfig); };
   this.setWorkingDaysToWeekdays = function () { return this.setWorkingDaysToWeekdays(); };
   this.addHoliday = function (holiday) { return this.addHoliday(holiday); };

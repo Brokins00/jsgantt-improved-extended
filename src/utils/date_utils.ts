@@ -29,7 +29,72 @@ export interface WorkingDaysConfig {
 }
 
 /**
+ * Calcola la data di fine di un task considerando solo i giorni lavorativi
+ * @param startDate Data di inizio del task
+ * @param originalEndDate Data di fine originale del task
+ * @param workingDays Configurazione giorni lavorativi
+ * @param holidays Array di festività
+ * @returns Nuova data di fine che considera i giorni non lavorativi
+ */
+export const calculateAdjustedEndDate = function (startDate: Date, originalEndDate: Date, workingDays: WorkingDaysConfig, holidays: Holiday[]): Date {
+  // Calcola i giorni totali del periodo originale (inclusi entrambi gli estremi)
+  const totalDaysOriginal = Math.ceil((originalEndDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+  
+  // Calcola quanti di questi dovrebbero essere giorni lavorativi (senza considerare festività)
+  let expectedWorkingDays = 0;
+  const tempDate = new Date(startDate.getTime());
+  for (let i = 0; i < totalDaysOriginal; i++) {
+    if (isWorkingDay(tempDate, workingDays)) {
+      expectedWorkingDays++;
+    }
+    tempDate.setDate(tempDate.getDate() + 1);
+  }
+  
+  // Se non ci sono giorni lavorativi attesi, restituisce la data originale
+  if (expectedWorkingDays <= 0) {
+    return originalEndDate;
+  }
+  
+  // Ora aggiungi questi giorni lavorativi alla data di inizio, saltando festività
+  return addWorkingDays(startDate, expectedWorkingDays - 1, workingDays, holidays);
+};
+
+/**
  * Verifica se un anno è bisestile
+
+/**
+ * Conta i giorni lavorativi in un periodo (inclusivo)
+ * @param startDate Data di inizio (inclusa)
+ * @param endDate Data di fine (inclusa)
+ * @param workingDays Configurazione giorni lavorativi
+ * @param holidays Array di festività
+ * @returns Numero di giorni lavorativi nel periodo
+ */
+export const countWorkingDaysInPeriod = (startDate: Date, endDate: Date, workingDaysConfig: WorkingDaysConfig, holidays: Holiday[]): number => {
+  let count = 0;
+  const currentDate = new Date(startDate.getTime());
+  const daysDetail: any[] = [];
+
+  while (currentDate <= endDate) {
+    const isNonWorking = isNonWorkingDay(currentDate, workingDaysConfig, holidays);
+    daysDetail.push({
+      date: currentDate.getDate(),
+      day: currentDate.getDay(),
+      isNonWorking
+    });
+    
+    if (!isNonWorking) {
+      count++;
+    }
+    
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  return count;
+};
+
+/**
+ * Verifica se una data è bisestile
  * @param year Anno da verificare
  * @returns true se l'anno è bisestile, false altrimenti
  */
@@ -190,13 +255,13 @@ export const getMinDate = function (pList, pFormat, pMinDate) {
   if (pList.length <= 0) return pMinDate || vDate;
 
   vDate.setTime((pMinDate && pMinDate.getTime()) || pList[0].getStart().getTime());
-
+  
   // Parse all Task Start dates to find min
   for (let i = 0; i < pList.length; i++) {
     if (pList[i].getStart().getTime() < vDate.getTime()) vDate.setTime(pList[i].getStart().getTime());
     if (pList[i].getPlanStart() && pList[i].getPlanStart().getTime() < vDate.getTime()) vDate.setTime(pList[i].getPlanStart().getTime());
   }
-
+  
   // Adjust min date to specific format boundaries (first of week or first of month)
   if (pFormat == 'day') {
     vDate.setDate(vDate.getDate() - 1);

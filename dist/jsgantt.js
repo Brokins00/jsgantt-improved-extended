@@ -68,6 +68,7 @@ exports.GanttChart = function (pDiv, pFormat) {
     this.vHolidays = [];
     this.vCustomWorkingDays = null; // Se null, usa vWorkingDays legacy
     this.vUseHolidaySystem = false; // Abilita/disabilita il nuovo sistema
+    this.vAutoAdjustTaskDates = false; // Abilita/disabilita aggiustamento automatico date task
     this.vEventClickCollapse = null;
     this.vEventClickRow = null;
     this.vEvents = {
@@ -152,7 +153,12 @@ exports.GanttChart = function (pDiv, pFormat) {
     this.addListener = events_1.addListener.bind(this);
     this.removeListener = events_1.removeListener.bind(this);
     this.createTaskInfo = task_1.createTaskInfo;
-    this.AddTaskItem = task_1.AddTaskItem;
+    this.AddTaskItem = function (task) {
+        // NON aggiustiamo le date - lasciamo che sia getOffset a gestire la visualizzazione
+        // In questo modo le date rimangono quelle originali ma la visualizzazione considera festività
+        // Chiama la funzione originale
+        return task_1.AddTaskItem.call(this, task);
+    }.bind(this);
     this.AddTaskItemObject = task_1.AddTaskItemObject;
     this.RemoveTaskItem = task_1.RemoveTaskItem;
     this.ClearTasks = task_1.ClearTasks;
@@ -176,6 +182,13 @@ exports.GanttChart = function (pDiv, pFormat) {
      */
     this.setUseHolidaySystem = function (useHolidays) {
         this.vUseHolidaySystem = useHolidays;
+        return this;
+    };
+    /**
+     * Abilita o disabilita l'aggiustamento automatico delle date dei task
+     */
+    this.setAutoAdjustTaskDates = function (autoAdjust) {
+        this.vAutoAdjustTaskDates = autoAdjust;
         return this;
     };
     /**
@@ -813,16 +826,54 @@ exports.GanttChart = function (pDiv, pFormat) {
             }
             columnCurrentDay = Math.floor(general_utils_1.calculateCurrentDateOffset(curTaskStart, curTaskEnd) / onePeriod) - 1;
         }
-        for (var j = 0; j < vNumCols - 1; j++) {
-            var vCellFormat = "gtaskcell gtaskcellcols";
-            if (this.vShowWeekends !== false && this.vFormat == "day" && (j % 7 == 4 || j % 7 == 5)) {
-                vCellFormat = "gtaskcellwkend";
+        // Usa la stessa logica dell'header: itera sulle date invece che su un indice
+        var colDate = new Date(pStartDate.getTime());
+        var columnsCreated = 0;
+        while (columnsCreated < vNumCols - 1) {
+            // Salta i weekend se non vengono mostrati (stesso comportamento dell'header)
+            if (this.vFormat == "day" && !this.vShowWeekends && colDate.getDay() % 6 == 0) {
+                colDate.setDate(colDate.getDate() + 1);
+                continue;
             }
+            var vCellFormat = "gtaskcell gtaskcellcols";
             //When is the column is the current day/week,give a different class
-            else if ((this.vFormat == "week" || this.vFormat == "day") && j === columnCurrentDay) {
+            if ((this.vFormat == "week" || this.vFormat == "day") && columnsCreated === columnCurrentDay) {
                 vCellFormat = "gtaskcellcurrent";
             }
+            // Calcola la data corrente per questa colonna
+            if (this.vFormat == "day" && pStartDate) {
+                // 🔍 Debug: log per capire lo shift
+                if (columnsCreated < 5) {
+                    console.log("Column " + columnsCreated + ": colDate=" + colDate.toLocaleDateString('it-IT'));
+                }
+                // Usa il sistema personalizzato di giorni lavorativi e festività se disponibile
+                if (this.vCustomWorkingDays && this.vHolidays) {
+                    var isNonWorking = date_utils_1.isNonWorkingDay(colDate, this.vCustomWorkingDays, this.vHolidays);
+                    // 🔍 Debug: log per verificare il calcolo festività
+                    if (columnsCreated < 5) {
+                        console.log("  isNonWorking=" + isNonWorking);
+                    }
+                    if (isNonWorking) {
+                        vCellFormat = "gtaskcellholiday"; // Nuova classe per festività
+                    }
+                }
+                // Altrimenti usa il sistema legacy per weekend (sabato/domenica)
+                else if (this.vShowWeekends !== false && colDate.getDay() % 6 == 0) {
+                    vCellFormat = "gtaskcellwkend";
+                }
+            }
             draw_utils_1.newNode(vTmpRow, "td", null, vCellFormat, "\u00A0\u00A0", taskCellWidth);
+            columnsCreated++;
+            // Avanza alla data successiva
+            if (this.vFormat == "day") {
+                colDate.setDate(colDate.getDate() + 1);
+            }
+            else if (this.vFormat == "week") {
+                colDate.setDate(colDate.getDate() + 7);
+            }
+            else if (this.vFormat == "month") {
+                colDate.setMonth(colDate.getMonth() + 1);
+            }
         }
     };
     /**
@@ -3648,6 +3699,7 @@ exports.includeGetSet = function () {
     this.setWorkingDays = function (workingDays) { this.vWorkingDays = workingDays; };
     // === METODI PER GESTIONE FESTIVITÀ ===
     this.setUseHolidaySystem = function (useHolidays) { return this.setUseHolidaySystem(useHolidays); };
+    this.setAutoAdjustTaskDates = function (autoAdjust) { return this.setAutoAdjustTaskDates(autoAdjust); };
     this.setCustomWorkingDays = function (workingDaysConfig) { return this.setCustomWorkingDays(workingDaysConfig); };
     this.setWorkingDaysToWeekdays = function () { return this.setWorkingDaysToWeekdays(); };
     this.addHoliday = function (holiday) { return this.addHoliday(holiday); };
@@ -4522,9 +4574,58 @@ exports.processRows = function (pList, pID, pRow, pLevel, pOpen, pUseSort, vDebu
  * DATES
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getIsoWeek = exports.parseDateFormatStr = exports.formatDateStr = exports.parseDateStr = exports.coerceDate = exports.getMaxDate = exports.getMinDate = exports.DEFAULT_WORKING_DAYS = exports.addWorkingDays = exports.countNonWorkingDays = exports.isNonWorkingDay = exports.isHoliday = exports.isWorkingDay = exports.getMonthDaysArray = exports.getDaysInMonth = exports.isLeapYear = void 0;
+exports.getIsoWeek = exports.parseDateFormatStr = exports.formatDateStr = exports.parseDateStr = exports.coerceDate = exports.getMaxDate = exports.getMinDate = exports.DEFAULT_WORKING_DAYS = exports.addWorkingDays = exports.countNonWorkingDays = exports.isNonWorkingDay = exports.isHoliday = exports.isWorkingDay = exports.getMonthDaysArray = exports.getDaysInMonth = exports.isLeapYear = exports.countWorkingDaysInPeriod = exports.calculateAdjustedEndDate = void 0;
+/**
+ * Calcola la data di fine di un task considerando solo i giorni lavorativi
+ * @param startDate Data di inizio del task
+ * @param originalEndDate Data di fine originale del task
+ * @param workingDays Configurazione giorni lavorativi
+ * @param holidays Array di festività
+ * @returns Nuova data di fine che considera i giorni non lavorativi
+ */
+exports.calculateAdjustedEndDate = function (startDate, originalEndDate, workingDays, holidays) {
+    // Calcola i giorni totali del periodo originale (inclusi entrambi gli estremi)
+    var totalDaysOriginal = Math.ceil((originalEndDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    // Calcola quanti di questi dovrebbero essere giorni lavorativi (senza considerare festività)
+    var expectedWorkingDays = 0;
+    var tempDate = new Date(startDate.getTime());
+    for (var i = 0; i < totalDaysOriginal; i++) {
+        if (exports.isWorkingDay(tempDate, workingDays)) {
+            expectedWorkingDays++;
+        }
+        tempDate.setDate(tempDate.getDate() + 1);
+    }
+    // Se non ci sono giorni lavorativi attesi, restituisce la data originale
+    if (expectedWorkingDays <= 0) {
+        return originalEndDate;
+    }
+    // Ora aggiungi questi giorni lavorativi alla data di inizio, saltando festività
+    return exports.addWorkingDays(startDate, expectedWorkingDays - 1, workingDays, holidays);
+};
 /**
  * Verifica se un anno è bisestile
+
+/**
+ * Conta i giorni lavorativi in un periodo (inclusivo)
+ * @param startDate Data di inizio (inclusa)
+ * @param endDate Data di fine (inclusa)
+ * @param workingDays Configurazione giorni lavorativi
+ * @param holidays Array di festività
+ * @returns Numero di giorni lavorativi nel periodo
+ */
+exports.countWorkingDaysInPeriod = function (startDate, endDate, workingDays, holidays) {
+    var count = 0;
+    var currentDate = new Date(startDate.getTime());
+    while (currentDate <= endDate) {
+        if (!exports.isNonWorkingDay(currentDate, workingDays, holidays)) {
+            count++;
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+    return count;
+};
+/**
+ * Verifica se una data è bisestile
  * @param year Anno da verificare
  * @returns true se l'anno è bisestile, false altrimenti
  */
@@ -5242,28 +5343,8 @@ exports.getOffset = function (pStartDate, pEndDate, pColWidth, pFormat, pShowWee
     var vTaskRight = exports.calculateCurrentDateOffset(curTaskStart, curTaskEnd) / oneHour;
     var vPosTmpDate;
     if (pFormat == 'day') {
-        if (!pShowWeekends || pWorkingDays || pHolidays) {
-            // Usa il nuovo sistema di calcolo giorni non lavorativi
-            if (pWorkingDays && pHolidays) {
-                // Sistema completo con configurazione personalizzata
-                var nonWorkingDays = date_utils_1.countNonWorkingDays(curTaskStart, curTaskEnd, pWorkingDays, pHolidays);
-                vTaskRight -= nonWorkingDays * 24;
-            }
-            else if (!pShowWeekends) {
-                // Sistema legacy per weekend
-                var start = curTaskStart;
-                var end = curTaskEnd;
-                var countWeekends = 0;
-                while (start < end) {
-                    var day = start.getDay();
-                    if (day === 6 || day == 0) {
-                        countWeekends++;
-                    }
-                    start = new Date(start.getTime() + 24 * oneHour);
-                }
-                vTaskRight -= countWeekends * 24;
-            }
-        }
+        // La larghezza della barra si basa sulla differenza tra date (end - start)
+        // NON aggiungiamo 24 ore qui, il frontend deve passare le date corrette
         vTaskRightPx = Math.ceil((vTaskRight / 24) * (pColWidth + DAY_CELL_MARGIN_WIDTH) - 1);
     }
     else if (pFormat == 'week') {

@@ -1,6 +1,6 @@
 {
-  "name": "@f.brogi/jsgantt-improved",
-  "version": "2.9.0",
+  "name": "jsgantt-improved-extended",
+  "version": "2.11.5",
   "description": "jsgantt-improved with leap year support and holiday management system",
   "main": "dist/index.js",
   "scripts": {
