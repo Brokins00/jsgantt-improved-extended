@@ -1,6 +1,6 @@
 {
   "name": "jsgantt-improved-extended",
-  "version": "2.11.5",
+  "version": "2.11.8",
   "description": "jsgantt-improved with leap year support and holiday management system",
   "main": "dist/index.js",
   "scripts": {

@@ -252,17 +252,40 @@ export const TaskItem = function (pID, pName, pStart, pEnd, pClass, pLink, pMile
     if (vMile) {
       vDuration = '-';
     }
+    // Se c'è una durata fissa impostata, usala (priorità alla durata fissa)
+    else if (vDuration) {
+      let vUnits = null;
+      switch (pFormat) {
+        case 'week': vUnits = 'day'; break;
+        case 'month': vUnits = 'week'; break;
+        case 'quarter': vUnits = 'month'; break;
+        default: vUnits = pFormat; break;
+      }
+      // Da giorni (vduration) a ore
+      let hours = Number(vDuration) * 24;
+      let tmpPer = 0;
+      let newVDuration;
+      switch (vUnits) {
+        case 'hour': tmpPer = Math.round(hours); newVDuration = tmpPer + ' ' + ((tmpPer != 1) ? pLang['hrs'] : pLang['hr']); break;
+        case 'day': tmpPer = Math.round(hours / 24); newVDuration = tmpPer + ' ' + ((tmpPer != 1) ? pLang['dys'] : pLang['dy']); break;
+        case 'week': tmpPer = Math.round(hours / 24 / 7); newVDuration = tmpPer + ' ' + ((tmpPer != 1) ? pLang['wks'] : pLang['wk']); break;
+        case 'month': tmpPer = Math.round(hours / 24 / 7 / 4.35); newVDuration = tmpPer + ' ' + ((tmpPer != 1) ? pLang['mths'] : pLang['mth']); break;
+        case 'quarter': tmpPer = Math.round(hours / 24 / 7 / 13); newVDuration = tmpPer + ' ' + ((tmpPer != 1) ? pLang['qtrs'] : pLang['qtr']); break;
+      }
+      return newVDuration;
+    }
+    // Altrimenti calcola dalla data di piano se non ci sono date effettive
     else if (!vEnd && !vStart && vPlanStart && vPlanEnd) {
       return calculateVDuration(pFormat, pLang, this.getPlanStart(), this.getPlanEnd());
     }
-    else if (!vEnd && vDuration) { return vDuration }
+    // Altrimenti calcola dalle date effettive
     else {
       vDuration = calculateVDuration(pFormat, pLang, this.getStart(), this.getEnd());
     }
     return vDuration;
   };
 
-  function calculateVDuration(pFormat, pLang, start, end) {
+  function calculateVDuration(pFormat, pLang, start, end, duration?) {
     let vDuration;
     let vUnits = null;
     switch (pFormat) {
@@ -278,7 +301,8 @@ export const TaskItem = function (pID, pName, pStart, pEnd, pClass, pLink, pMile
     // }
     // let tmpPer = (getOffset(this.getStart(), vTaskEnd, 999, vUnits)) / 1000;
 
-    const hours = (end.getTime() - start.getTime()) / 1000 / 60 / 60;
+    const hours = duration ? duration / 1000 / 60 / 60 : (end.getTime() - start.getTime()) / 1000 / 60 / 60;
+    console.log(duration, 'hours:', hours)
     let tmpPer;
     switch (vUnits) {
       case 'hour': tmpPer = Math.round(hours); vDuration = tmpPer + ' ' + ((tmpPer != 1) ? pLang['hrs'] : pLang['hr']); break;
